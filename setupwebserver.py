@@ -41,9 +41,9 @@ os.environ['PGPASSWORD'] = password
 for key in other_ips:
     result = subprocess.call(["psql", "-h", key, "-U", "ckan", "-c", "select 1"])
     if result == 0:
+        update_config(key, password)
         result = subprocess.call(["psql", "-h", key, "-U", "ckan", "-c", "select 1 from package"])
         if result == 1:
-            update_config(key, password)
             result = subprocess.call(["ckan", "db", "init", "/etc/ckan/default/production.ini"])
 
 
