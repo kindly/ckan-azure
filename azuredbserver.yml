@@ -1,0 +1,101 @@
+
+- hosts: azuredb
+  sudo: yes
+  vars:
+   - datastore_db: ckan_datastore
+   - datastore_readonly_user: ckan_datastore_readonly
+   - datastore_readwrite_user: ckan_datastore_readwrite
+
+  tasks:
+     - name: make locale
+       action: command locale-gen en_GB.utf8
+
+     - name: -> install packages
+       action: apt pkg=${item} state=installed update_cache=yes
+       tags: install_basic
+       with_items:
+          - htop
+          - git
+          - python-dev
+          - libpq-dev
+          - language-pack-en
+          - ufw
+          - python-psycopg2
+          - postgresql
+          - postgresql-9.1
+          - postgresql-9.1-postgis
+          - pgtune
+          - tomcat6
+          - solr-tomcat
+
+     - name: make ckan dir
+       action: file path=/usr/lib/ckan/ state=directory
+
+     - name: copy setupscript
+       action: copy src=setupdbserver.py dest=/usr/lib/ckan/setupdbserver.py mode=0744
+
+     - name: set_sysctl_shmmax
+       action: sysctl name=kernel.shmmax value=1143210240 state=present reload=yes sysctl_file=/etc/sysctl.conf
+
+     - name: drop cluster
+       action: command pg_dropcluster --stop 9.1 main
+
+     - name: crete cluster
+       action: command pg_createcluster --locale=en_GB.utf8 --start 9.1 main
+
+     - name: backup_postgres_config
+       action: command cp /etc/postgresql/9.1/main/postgresql.conf /etc/postgresql/9.1/main/${item}.orig creates=/etc/postgresql/9.1/main/${item}.orig
+       with_items:
+          - postgresql.conf
+          - pg_hba.conf
+
+     - name: postgres listen
+       lineinfile: dest=/etc/postgresql/9.1/main/postgresql.conf  line="listen_addresses = '*'" regexp="^#listen_addresses"
+
+     - name: run_pgtune
+       action: command pgtune -i /etc/postgresql/9.1/main/postgresql.conf -o /etc/postgresql/9.1/main/postgresql.conf
+
+     - name: datastore_users
+       action: postgresql_user user=${item} password=tmp_pass
+       with_items:
+          - ${datastore_readonly_user}
+          - ${datastore_readwrite_user}
+       sudo_user: postgres
+
+     - name: ckan_ckan_user
+       action: postgresql_user user=ckan password=tmp_pass
+       sudo_user: postgres
+    
+     - name: create_ckan_db
+       postgresql_db: db=ckan encoding='UTF-8' 
+       sudo_user: postgres
+
+     - name: create_datastore_db
+       action: postgresql_db db=${datastore_db} encoding='UTF-8'
+       sudo_user: postgres
+
+     - name: set_ckan_db_perms
+       postgresql_privs: >
+          db=ckan
+          privs=ALL
+          type=database
+          role=ckan
+       ignore_errors: True
+       sudo_user: postgres
+
+     - name: copy dbprivs
+       action: copy src=dbprivs.sql dest=/tmp/dbprivs.sql
+
+     - name: run db privs
+       action: command psql -f /tmp/dbprivs.sql
+       sudo_user: postgres
+
+     - name: fetch_solr_config
+       action: command wget https://raw.github.com/okfn/ckan/master/ckan/config/solr/schema-2.0.xml -O /etc/solr/conf/schema.xml
+
+     - name: add to waaagent state
+       lineinfile: dest=/etc/waagent.conf regexp=^Role.StateConsumer= line=Role.StateConsumer=/usr/lib/ckan/setupdbserver.py
+
+     - name: add to waaagent topo
+       lineinfile: dest=/etc/waagent.conf regexp=^Role.TopologyConsumer= line=Role.TopologyConsumer=/usr/lib/ckan/setupdbserver.py
+

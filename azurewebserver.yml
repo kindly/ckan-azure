@@ -1,0 +1,41 @@
+- hosts: azureweb
+  sudo: yes
+
+  tasks:
+     - name: make locale
+       action: command locale-gen en_GB.utf8
+     - name: -> install packages
+       action: apt pkg=${item} state=installed update_cache=yes
+       tags: install_basic
+       with_items:
+          - htop
+          - git
+          - python-dev
+          - libpq-dev
+          - language-pack-en
+          - ufw
+          - python-psycopg2
+          - nginx  
+          - apache2  
+          - libapache2-mod-wsgi 
+          - libpq5
+          - postgresql-client-common 
+          - postgresql-client-9.1
+
+     - name: make ckan dir
+       action: file path=/usr/lib/ckan/ state=directory
+
+     - name: copy setupscript
+       action: copy src=setupwebserver.py dest=/usr/lib/ckan/setupwebserver.py mode=0744
+
+     - name: fetch_ckan
+       action: command wget http://packaging.ckan.org/python-ckan-2.0_amd64.deb -O /tmp/python-ckan-2.0_amd64.deb
+
+     - name: install ckan
+       action: command dpkg -i /tmp/python-ckan-2.0_amd64.deb
+
+     - name: add to waaagent state
+       lineinfile: dest=/etc/waagent.conf regexp=^Role.StateConsumer= line=Role.StateConsumer=/usr/lib/ckan/setupwebserver.py
+
+     - name: add to waaagent topo
+       lineinfile: dest=/etc/waagent.conf regexp=^Role.TopologyConsumer= line=Role.TopologyConsumer=/usr/lib/ckan/setupwebserver.py
