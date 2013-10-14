@@ -12,11 +12,11 @@ password = ''.join(random.choice(string.ascii_uppercase + string.digits) for x i
 user, name, cert = sys.argv[1], sys.argv[2], sys.argv[3]
 
 subprocess.call(
-["azure",  "vm",  "create",  name,  "ckandb",  user, password, "-n", name + "db" , "-e", "50022", "-t", cert, "--location", "West Europe"]
+["azure",  "vm",  "create",  name, "-o", "vmdepot-1398-1-32",  user, password, "-n", name + "db" , "-e", "50022", "-t", cert, "--location", "West Europe"]
 )
 
 subprocess.call(
-["azure",  "vm",  "create",  name,  "ckanweb", user, password, "-n", name + "web", "-e", "-t", cert, "--location", "West Europe", "-c"]
+["azure",  "vm",  "create",  name, "-o", "vmdepot-1397-1-32", user, password, "-n", name + "web", "-e", "-t", cert, "--location", "West Europe", "-c"]
 )
 
 subprocess.call(

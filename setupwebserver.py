@@ -6,6 +6,7 @@ import subprocess
 import os
 
 
+
 def update_config(ip, password):
     os.rename('/etc/ckan/default/production.ini', '/etc/ckan/default/production.ini.old')
 
@@ -21,14 +22,24 @@ def update_config(ip, password):
                 line = 'solr_url = http://%s:8080/solr \n' % ip
             productionew.write(line)
 
+def change_config():
+    if not os.path.exists('/etc/ckan/default/production.ini'):
+        result = subprocess.call(["/usr/lib/ckan/default/bin/paster", "make-config", "ckan", "/etc/ckan/default/production.ini"])
+
+        # ofs add
+        subprocess.call(['mkdir', '-p', '/var/lib/ckan/default'])
+        subprocess.call(['sed', '-i', 's/^#ofs.impl = pair.*/ofs.impl = pairtree/g', '/etc/ckan/default/production.ini'])
+        subprocess.call(['sed', '-i', 's/^#ofs.storage.*/ofs.storage_dir = \/var\/lib\/ckan\/default/g', '/etc/ckan/default/production.ini'])
+        subprocess.call(['sed', '-i', 's/^ckan.plugins.*/ckan.plugins = stats text_preview recline_preview datastore datapusherext/g', '/etc/ckan/default/production.ini'])
+        subprocess.call(['chown', 'www-data', '-R', '/var/lib/ckan/'])
+
 
 tree = ET.parse('/var/lib/waagent/SharedConfig.xml')
 root = tree.getroot()
 password = base64.b64encode(root.find('Deployment').attrib['guid'])
 
 if len(sys.argv) > 1 and sys.argv[1] == "Ready":
-    os.remove('/etc/ckan/default/production.ini')
-    result = subprocess.call(["/usr/lib/ckan/default/bin/paster", "make-config", "ckan", "/etc/ckan/default/production.ini"])
+    change_config()
 
 other_ips = {}
 for num, instance in enumerate(root.find('Instances')):

@@ -11,6 +11,9 @@
           - htop
           - git
           - python-dev
+          - build-essential
+          - libxml2-dev
+          - libxslt1-dev
           - libpq-dev
           - language-pack-en
           - ufw
@@ -21,6 +24,7 @@
           - libpq5
           - postgresql-client-common 
           - postgresql-client-9.1
+          - python-virtualenv
 
      - name: make ckan dir
        action: file path=/usr/lib/ckan/ state=directory
@@ -29,10 +33,38 @@
        action: copy src=setupwebserver.py dest=/usr/lib/ckan/setupwebserver.py mode=0744
 
      - name: fetch_ckan
-       action: command wget http://packaging.ckan.org/python-ckan-2.0_amd64.deb -O /tmp/python-ckan-2.0_amd64.deb
+       action: command wget http://packaging.ckan.org/build/python-ckan_2.1-1_amd64.deb -O /tmp/python-ckan_2.1-1_amd64.deb
 
      - name: install ckan
-       action: command dpkg -i /tmp/python-ckan-2.0_amd64.deb
+       action: command dpkg -i /tmp/python-ckan_2.1-1_amd64.deb
+
+     - name: remove development.ini
+       action: file path=/etc/ckan/default/production.ini state=absent
+
+     - name: install datapusher
+       pip: name='git+https://github.com/okfn/ckan-service-provider.git#egg=ckanserviceprovider' virtualenv='/usr/lib/ckan/default'
+
+     - name: install datapusher
+       pip: name='git+https://github.com/okfn/datapusher.git#egg=datapusher' virtualenv='/usr/lib/ckan/default'
+
+     - name: install datapusherext
+       pip: name='git+https://github.com/okfn/ckanext-datapusherext.git#egg=ckanext-datapusherext' virtualenv='/usr/lib/ckan/default'
+
+     - name: add datapusher virtual host
+       action: lineinfile dest=/etc/apache2/ports.conf regexp="^Name.*8800" insertafter="EOF" line="NameVirtualHost *:8800"
+
+     - name: add datapusher ports ckan
+       action: lineinfile dest=/etc/apache2/ports.conf regexp="^Listen 8800" insertafter="EOF" line="Listen 8800"
+
+     - name: copy datapusher apache config
+       action: copy src=datapusher dest=/etc/apache2/sites-enabled/datapusher mode=0744
+
+     - name: copy datapusher settings
+       action: copy src=datapusher_settings.py dest=/etc/ckan/datapusher_settings.py mode=0744
+
+     - name: copy datapusher wsgi
+       action: copy src=datapusher.wsgi dest=/etc/ckan/datapusher.wsgi mode=0744
+
 
      - name: add to waaagent state
        lineinfile: dest=/etc/waagent.conf regexp=^Role.StateConsumer= line=Role.StateConsumer=/usr/lib/ckan/setupwebserver.py
